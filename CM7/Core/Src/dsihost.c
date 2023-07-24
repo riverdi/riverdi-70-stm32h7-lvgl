@@ -203,6 +203,7 @@ void MX_DSIHOST_DSI_Init(void)
   HAL_DSI_ShortWrite(&hdsi, 0, DSI_DCS_SHORT_PKT_WRITE_P0, DSI_SET_DISPLAY_ON, 0x0);
   HAL_Delay(120);
   /* USER CODE END DSIHOST_Init 2 */
+
 }
 
 void HAL_DSI_MspInit(DSI_HandleTypeDef* dsiHandle)
