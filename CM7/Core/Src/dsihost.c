@@ -21,7 +21,26 @@
 #include "dsihost.h"
 
 /* USER CODE BEGIN 0 */
+void BSP_LCD_Reset(uint32_t Instance)
+{
+  GPIO_InitTypeDef gpio_init_structure;
 
+  gpio_init_structure.Pin = LCD_DISP_Pin;
+  gpio_init_structure.Mode = GPIO_MODE_OUTPUT_PP;
+  gpio_init_structure.Pull = GPIO_NOPULL;
+  gpio_init_structure.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LCD_DISP_GPIO_Port, &gpio_init_structure);
+
+  /* activate XRES active low */
+  HAL_GPIO_WritePin(LCD_DISP_GPIO_Port, LCD_DISP_Pin, GPIO_PIN_RESET);
+  HAL_Delay(20);
+
+  /* deactivate XRES */
+  HAL_GPIO_WritePin(LCD_DISP_GPIO_Port, LCD_DISP_Pin, GPIO_PIN_SET);
+
+  /* wait for 10ms after releasing XRES before sending commands */
+  HAL_Delay(10);
+}
 /* USER CODE END 0 */
 
 DSI_HandleTypeDef hdsi;
@@ -41,7 +60,9 @@ void MX_DSIHOST_DSI_Init(void)
   DSI_VidCfgTypeDef VidCfg = {0};
 
   /* USER CODE BEGIN DSIHOST_Init 1 */
-
+  uint32_t LcdClock  = 41666;
+  uint32_t laneByteClk_kHz = 62000;
+  BSP_LCD_Reset(0);
   /* USER CODE END DSIHOST_Init 1 */
   hdsi.Instance = DSI;
   hdsi.Init.AutomaticClockLaneControl = DSI_AUTO_CLK_LANE_CTRL_DISABLE;
@@ -125,9 +146,63 @@ void MX_DSIHOST_DSI_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN DSIHOST_Init 2 */
+  VidCfg.VirtualChannelID = 0;
+  VidCfg.ColorCoding = DSI_RGB888;
+  VidCfg.LooselyPacked = DSI_LOOSELY_PACKED_DISABLE;
+  VidCfg.Mode = DSI_VID_MODE_BURST;
+  VidCfg.PacketSize = HACT;
+  VidCfg.NumberOfChunks = 0;
+  VidCfg.NullPacketSize = 0;
+  VidCfg.HSPolarity = DSI_HSYNC_ACTIVE_LOW;
+  VidCfg.VSPolarity = DSI_VSYNC_ACTIVE_LOW;
+  VidCfg.DEPolarity = DSI_DATA_ENABLE_ACTIVE_HIGH;
+  VidCfg.HorizontalSyncActive =   HSYNC * laneByteClk_kHz/LcdClock;
+  VidCfg.HorizontalBackPorch = (uint32_t) (HBP * laneByteClk_kHz/LcdClock);
+  VidCfg.HorizontalLine = (HACT + HSYNC + HBP + HFP) * laneByteClk_kHz/LcdClock;
+  VidCfg.VerticalSyncActive = VSYNC;
+  VidCfg.VerticalBackPorch = VBP;
+  VidCfg.VerticalFrontPorch = VFP;
+  VidCfg.VerticalActive = VACT;
+  VidCfg.LPCommandEnable = DSI_LP_COMMAND_ENABLE;
+  VidCfg.LPLargestPacketSize = 23;
+  VidCfg.LPVACTLargestPacketSize = 0;
+  VidCfg.LPHorizontalFrontPorchEnable = DSI_LP_HFP_ENABLE;
+  VidCfg.LPHorizontalBackPorchEnable = DSI_LP_HBP_ENABLE;
+  VidCfg.LPVerticalActiveEnable = DSI_LP_VACT_ENABLE;
+  VidCfg.LPVerticalFrontPorchEnable = DSI_LP_VFP_ENABLE;
+  VidCfg.LPVerticalBackPorchEnable = DSI_LP_VBP_ENABLE;
+  VidCfg.LPVerticalSyncActiveEnable = DSI_LP_VSYNC_ENABLE;
+  VidCfg.FrameBTAAcknowledgeEnable = DSI_FBTAA_DISABLE;
+  if (HAL_DSI_ConfigVideoMode(&hdsi, &VidCfg) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_DSI_SetGenericVCID(&hdsi, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  HAL_DSI_Start(&hdsi);
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_DCS_SHORT_PKT_WRITE_P0, DSI_SOFT_RESET, 0x0);
+  HAL_Delay(120);
 
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_GEN_SHORT_PKT_WRITE_P2, 0x87, 0x5A);
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_GEN_SHORT_PKT_WRITE_P2, 0xB0, 0x80);
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_GEN_SHORT_PKT_WRITE_P2, 0xB2, 0x50);
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_GEN_SHORT_PKT_WRITE_P2, 0x80, 0x4B);
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_GEN_SHORT_PKT_WRITE_P2, 0x81, 0xFF);
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_GEN_SHORT_PKT_WRITE_P2, 0x82, 0x1A);
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_GEN_SHORT_PKT_WRITE_P2, 0x83, 0x88);
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_GEN_SHORT_PKT_WRITE_P2, 0x84, 0x8F);
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_GEN_SHORT_PKT_WRITE_P2, 0x85, 0x35);
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_GEN_SHORT_PKT_WRITE_P2, 0x86, 0xB0);
+  HAL_Delay(50);
+
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_DCS_SHORT_PKT_WRITE_P0, DSI_EXIT_SLEEP_MODE, 0x0);
+  HAL_Delay(120);
+
+  HAL_DSI_ShortWrite(&hdsi, 0, DSI_DCS_SHORT_PKT_WRITE_P0, DSI_SET_DISPLAY_ON, 0x0);
+  HAL_Delay(120);
   /* USER CODE END DSIHOST_Init 2 */
-
 }
 
 void HAL_DSI_MspInit(DSI_HandleTypeDef* dsiHandle)

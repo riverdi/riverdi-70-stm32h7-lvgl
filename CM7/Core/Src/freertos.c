@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "lvgl/lvgl.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,7 +51,10 @@ osThreadId defaultTaskHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-
+osThreadId lvgl_tickHandle;
+osThreadId lvgl_timerHandle;
+void LVGLTimer(void const * argument);
+void LGVLTick(void const * argument);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -135,6 +138,11 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+  osThreadDef(lvgl_tick, LGVLTick, osPriorityNormal, 0, 1024);
+  lvgl_tickHandle = osThreadCreate(osThread(lvgl_tick), NULL);
+
+  osThreadDef(lvgl_timer, LVGLTimer, osPriorityNormal, 0, 1024);
+  lvgl_timerHandle = osThreadCreate(osThread(lvgl_timer), NULL);
   /* USER CODE END RTOS_THREADS */
 
 }
@@ -159,5 +167,22 @@ void StartDefaultTask(void const * argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-
+/* LVGL timer for tasks */
+void LVGLTimer(void const * argument)
+{
+  for(;;)
+  {
+    lv_timer_handler();
+    osDelay(20);
+  }
+}
+/* LVGL tick source */
+void LGVLTick(void const * argument)
+{
+  for(;;)
+  {
+    lv_tick_inc(10);
+    osDelay(10);
+  }
+}
 /* USER CODE END Application */

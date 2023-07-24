@@ -42,7 +42,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "lvgl_port.h"
+#include "lvgl/lvgl.h"
+#include "lvgl/demos/lv_demos.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -101,12 +103,14 @@ int main(void)
 
 /* USER CODE BEGIN Boot_Mode_Sequence_1 */
   /* Wait until CPU2 boots and enters in stop mode or timeout*/
+#if 0
   timeout = 0xFFFF;
   while((__HAL_RCC_GET_FLAG(RCC_FLAG_D2CKRDY) != RESET) && (timeout-- > 0));
   if ( timeout < 0 )
   {
   Error_Handler();
   }
+#endif
 /* USER CODE END Boot_Mode_Sequence_1 */
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -179,6 +183,16 @@ Error_Handler();
   MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
+  /* lvgl init */
+  lv_init();
+  lv_port_disp_init();
+
+  /* lvgl demo */
+  lv_demo_widgets();
+
+  /* pwm */
+  if (HAL_TIM_PWM_Start(&htim15, TIM_CHANNEL_1) != HAL_OK)
+    Error_Handler();
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */

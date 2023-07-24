@@ -22,6 +22,397 @@
 #include "fmc.h"
 
 /* USER CODE BEGIN 0 */
+typedef struct
+{
+  uint32_t TargetBank;           /*!< Target Bank                             */
+  uint32_t RefreshMode;          /*!< Refresh Mode                            */
+  uint32_t RefreshRate;          /*!< Refresh Rate                            */
+  uint32_t BurstLength;          /*!< Burst Length                            */
+  uint32_t BurstType;            /*!< Burst Type                              */
+  uint32_t CASLatency;           /*!< CAS Latency                             */
+  uint32_t OperationMode;        /*!< Operation Mode                          */
+  uint32_t WriteBurstMode;       /*!< Write Burst Mode                        */
+} IS42S32800J_Context_t;
+
+#define REFRESH_COUNT            ((uint32_t)0x0603) /* SDRAM refresh counter (100Mhz SD clock) */
+#define SDRAM_DEVICE_ADDR        0xD0000000U
+#define SDRAM_DEVICE_SIZE        0x800000U
+#define IS42S32800J_TIMEOUT      ((uint32_t)0xFFFF)
+
+/**
+  * @}
+  */
+
+/** @defgroup IS42S32800J_Exported_Constants
+  * @{
+  */
+#define IS42S32800J_OK                (0)
+#define IS42S32800J_ERROR             (-1)
+
+/* Register Mode */
+#define IS42S32800J_BURST_LENGTH_1              0x00000000U
+#define IS42S32800J_BURST_LENGTH_2              0x00000001U
+#define IS42S32800J_BURST_LENGTH_4              0x00000002U
+#define IS42S32800J_BURST_LENGTH_8              0x00000004U
+#define IS42S32800J_BURST_TYPE_SEQUENTIAL       0x00000000U
+#define IS42S32800J_BURST_TYPE_INTERLEAVED      0x00000008U
+#define IS42S32800J_CAS_LATENCY_2               0x00000020U
+#define IS42S32800J_CAS_LATENCY_3               0x00000030U
+#define IS42S32800J_OPERATING_MODE_STANDARD     0x00000000U
+#define IS42S32800J_WRITEBURST_MODE_PROGRAMMED  0x00000000U
+#define IS42S32800J_WRITEBURST_MODE_SINGLE      0x00000200U
+
+/* Command Mode */
+#define IS42S32800J_NORMAL_MODE_CMD             0x00000000U
+#define IS42S32800J_CLK_ENABLE_CMD              0x00000001U
+#define IS42S32800J_PALL_CMD                    0x00000002U
+#define IS42S32800J_AUTOREFRESH_MODE_CMD        0x00000003U
+#define IS42S32800J_LOAD_MODE_CMD               0x00000004U
+#define IS42S32800J_SELFREFRESH_MODE_CMD        0x00000005U
+#define IS42S32800J_POWERDOWN_MODE_CMD          0x00000006U
+
+int32_t IS42S32800J_Init(SDRAM_HandleTypeDef *Ctx, IS42S32800J_Context_t *pRegMode);
+int32_t IS42S32800J_ClockEnable(SDRAM_HandleTypeDef *Ctx, uint32_t Interface);
+int32_t IS42S32800J_Precharge(SDRAM_HandleTypeDef *Ctx, uint32_t Interface);
+int32_t IS42S32800J_ModeRegConfig(SDRAM_HandleTypeDef *Ctx, IS42S32800J_Context_t *pRegMode);
+int32_t IS42S32800J_TimingConfig(SDRAM_HandleTypeDef *Ctx, FMC_SDRAM_TimingTypeDef *pTiming);
+int32_t IS42S32800J_RefreshMode(SDRAM_HandleTypeDef *Ctx, uint32_t Interface, uint32_t RefreshMode);
+int32_t IS42S32800J_RefreshRate(SDRAM_HandleTypeDef *Ctx, uint32_t RefreshCount);
+int32_t IS42S32800J_EnterPowerMode(SDRAM_HandleTypeDef *Ctx, uint32_t Interface);
+int32_t IS42S32800J_ExitPowerMode(SDRAM_HandleTypeDef *Ctx, uint32_t Interface);
+int32_t IS42S32800J_Sendcmd(SDRAM_HandleTypeDef *Ctx, FMC_SDRAM_CommandTypeDef *SdramCmd);
+
+static FMC_SDRAM_CommandTypeDef Command;
+/**
+  * @}
+  */
+
+/** @defgroup IS42S32800J_Function_Prototypes IS42S32800J Function Prototypes
+  * @{
+  */
+int32_t IS42S32800J_Delay(uint32_t Delay);
+
+/**
+  * @}
+  */
+
+/** @defgroup IS42S32800J_Exported_Functions IS42S32800J Exported Functions
+  * @{
+  */
+/**
+  * @brief  Initializes the IS42S32800J SDRAm memory
+  * @param  Ctx Component object pointer
+  * @param  pRegMode : Pointer to Register Mode structure
+  * @retval error status
+  */
+int32_t IS42S32800J_Init(SDRAM_HandleTypeDef *Ctx, IS42S32800J_Context_t *pRegMode)
+{
+  int32_t ret = IS42S32800J_ERROR;
+
+  /* Step 1: Configure a clock configuration enable command */
+  if(IS42S32800J_ClockEnable(Ctx, pRegMode->TargetBank) == IS42S32800J_OK)
+  {
+    /* Step 2: Insert 100 us minimum delay */
+    /* Inserted delay is equal to 1 ms due to systick time base unit (ms) */
+    HAL_Delay(1);
+    IS42S32800J_ClockEnable(Ctx, pRegMode->TargetBank);
+    HAL_Delay(1);
+
+    /* Step 3: Configure a PALL (precharge all) command */
+    if(IS42S32800J_Precharge(Ctx, pRegMode->TargetBank) == IS42S32800J_OK)
+    {
+      HAL_Delay(1);
+
+      /* Step 4: Configure a Refresh command */
+      if(IS42S32800J_RefreshMode(Ctx, pRegMode->TargetBank, pRegMode->RefreshMode) == IS42S32800J_OK)
+      {
+        HAL_Delay(1);
+
+        /* Step 5: Program the external memory mode register */
+        if(IS42S32800J_ModeRegConfig(Ctx, pRegMode) == IS42S32800J_OK)
+        {
+          HAL_Delay(1);
+
+          /* Step 6: Set the refresh rate counter */
+          if(IS42S32800J_RefreshRate(Ctx, pRegMode->RefreshRate) == IS42S32800J_OK)
+          {
+            ret = IS42S32800J_OK;
+          }
+        }
+      }
+    }
+  }
+  return ret;
+}
+
+/**
+  * @brief  Enable SDRAM clock
+  * @param  Ctx Component object pointer
+  * @param  Interface Could be FMC_SDRAM_CMD_TARGET_BANK1 or FMC_SDRAM_CMD_TARGET_BANK2
+  * @retval error status
+  */
+int32_t IS42S32800J_ClockEnable(SDRAM_HandleTypeDef *Ctx, uint32_t Interface)
+{
+  Command.CommandMode            = IS42S32800J_CLK_ENABLE_CMD;
+  Command.CommandTarget          = FMC_SDRAM_CMD_TARGET_BANK2;
+  Command.AutoRefreshNumber      = 1;
+  Command.ModeRegisterDefinition = 0;
+
+  /* Send the command */
+  if(HAL_SDRAM_SendCommand(Ctx, &Command, IS42S32800J_TIMEOUT) != HAL_OK)
+  {
+    return IS42S32800J_ERROR;
+  }
+  else
+  {
+    return IS42S32800J_OK;
+  }
+}
+
+/**
+  * @brief  Precharge all sdram banks
+  * @param  Ctx Component object pointer
+  * @param  Interface Could be FMC_SDRAM_CMD_TARGET_BANK1 or FMC_SDRAM_CMD_TARGET_BANK2
+  * @retval error status
+  */
+int32_t IS42S32800J_Precharge(SDRAM_HandleTypeDef *Ctx, uint32_t Interface)
+{
+  Command.CommandMode            = FMC_SDRAM_CMD_PALL;
+  Command.CommandTarget          = FMC_SDRAM_CMD_TARGET_BANK2;
+  Command.AutoRefreshNumber      = 8;
+  Command.ModeRegisterDefinition = 0;
+
+  /* Send the command */
+  if(HAL_SDRAM_SendCommand(Ctx, &Command, IS42S32800J_TIMEOUT) != HAL_OK)
+  {
+    return IS42S32800J_ERROR;
+  }
+  else
+  {
+    return IS42S32800J_OK;
+  }
+}
+
+/**
+  * @brief  Program the external memory mode register
+  * @param  Ctx Component object pointer
+  * @param  pRegMode : Pointer to Register Mode structure
+  * @retval error status
+  */
+int32_t IS42S32800J_ModeRegConfig(SDRAM_HandleTypeDef *Ctx, IS42S32800J_Context_t *pRegMode)
+{
+  uint32_t tmpmrd;
+
+  /* Program the external memory mode register */
+  tmpmrd = (uint32_t)pRegMode->BurstLength   |\
+                     pRegMode->BurstType     |\
+                     pRegMode->CASLatency    |\
+                     pRegMode->OperationMode |\
+                     pRegMode->WriteBurstMode;
+
+  Command.CommandMode            = FMC_SDRAM_CMD_LOAD_MODE;
+  Command.CommandTarget          = FMC_SDRAM_CMD_TARGET_BANK2;
+  Command.AutoRefreshNumber      = 1;
+  Command.ModeRegisterDefinition = tmpmrd;
+
+  /* Send the command */
+  if(HAL_SDRAM_SendCommand(Ctx, &Command, IS42S32800J_TIMEOUT) != HAL_OK)
+  {
+    return IS42S32800J_ERROR;
+  }
+  else
+  {
+    return IS42S32800J_OK;
+  }
+}
+
+/**
+  * @brief  Program the SDRAM timing
+  * @param  Ctx Component object pointer
+  * @param  pTiming Pointer to SDRAM timing configuration structure
+  * @retval error status
+  */
+int32_t IS42S32800J_TimingConfig(SDRAM_HandleTypeDef *Ctx, FMC_SDRAM_TimingTypeDef *pTiming)
+{
+  /* Program the SDRAM timing */
+  if(HAL_SDRAM_Init(Ctx, pTiming) != HAL_OK)
+  {
+    return IS42S32800J_ERROR;
+  }
+  else
+  {
+    return IS42S32800J_OK;
+  }
+}
+
+/**
+  * @brief  Configure Refresh mode
+  * @param  Ctx Component object pointer
+  * @param  Interface Could be FMC_SDRAM_CMD_TARGET_BANK1 or FMC_SDRAM_CMD_TARGET_BANK2
+  * @param  RefreshMode Could be IS42S32800J_CMD_AUTOREFRESH_MODE or
+  *                      IS42S32800J_CMD_SELFREFRESH_MODE
+  * @retval error status
+  */
+int32_t IS42S32800J_RefreshMode(SDRAM_HandleTypeDef *Ctx, uint32_t Interface, uint32_t RefreshMode)
+{
+  Command.CommandMode            = RefreshMode;
+  Command.CommandTarget          = FMC_SDRAM_CMD_TARGET_BANK2;
+  Command.AutoRefreshNumber      = 8;
+  Command.ModeRegisterDefinition = 0;
+
+  /* Send the command */
+  if(HAL_SDRAM_SendCommand(Ctx, &Command, IS42S32800J_TIMEOUT) != HAL_OK)
+  {
+    return IS42S32800J_ERROR;
+  }
+  else
+  {
+    return IS42S32800J_OK;
+  }
+}
+
+/**
+  * @brief  Set the device refresh rate
+  * @param  Ctx Component object pointer
+  * @param  RefreshCount The refresh rate to be programmed
+  * @retval error status
+  */
+int32_t IS42S32800J_RefreshRate(SDRAM_HandleTypeDef *Ctx, uint32_t RefreshCount)
+{
+  /* Set the device refresh rate */
+  if(HAL_SDRAM_ProgramRefreshRate(Ctx, RefreshCount) != HAL_OK)
+  {
+    return IS42S32800J_ERROR;
+  }
+  else
+  {
+    HAL_SDRAM_SetAutoRefreshNumber(Ctx,2);
+    return IS42S32800J_OK;
+  }
+}
+
+/**
+  * @brief  Enter Power mode
+  * @param  Ctx Component object pointer
+  * @param  Interface Could be FMC_SDRAM_CMD_TARGET_BANK1 or FMC_SDRAM_CMD_TARGET_BANK2
+  * @retval error status
+  */
+int32_t IS42S32800J_EnterPowerMode(SDRAM_HandleTypeDef *Ctx, uint32_t Interface)
+{
+  Command.CommandMode            = IS42S32800J_POWERDOWN_MODE_CMD;
+  Command.CommandTarget          = Interface;
+  Command.AutoRefreshNumber      = 1;
+  Command.ModeRegisterDefinition = 0;
+
+  /* Send the command */
+  if(HAL_SDRAM_SendCommand(Ctx, &Command, IS42S32800J_TIMEOUT) != HAL_OK)
+  {
+    return IS42S32800J_ERROR;
+  }
+  else
+  {
+    return IS42S32800J_OK;
+  }
+}
+
+/**
+  * @brief  Exit Power mode
+  * @param  Ctx Component object pointer
+  * @param  Interface Could be FMC_SDRAM_CMD_TARGET_BANK1 or FMC_SDRAM_CMD_TARGET_BANK2
+  * @retval error status
+  */
+int32_t IS42S32800J_ExitPowerMode(SDRAM_HandleTypeDef *Ctx, uint32_t Interface)
+{
+  Command.CommandMode            = IS42S32800J_NORMAL_MODE_CMD;
+  Command.CommandTarget          = Interface;
+  Command.AutoRefreshNumber      = 1;
+  Command.ModeRegisterDefinition = 0;
+
+  /* Send the command */
+  if(HAL_SDRAM_SendCommand(Ctx, &Command, IS42S32800J_TIMEOUT) != HAL_OK)
+  {
+    return IS42S32800J_ERROR;
+  }
+  else
+  {
+    return IS42S32800J_OK;
+  }
+}
+
+/**
+  * @brief  Sends command to the SDRAM bank.
+  * @param  Ctx Component object pointer
+  * @param  SdramCmd : Pointer to SDRAM command structure
+  * @retval SDRAM status
+  */
+int32_t IS42S32800J_Sendcmd(SDRAM_HandleTypeDef *Ctx, FMC_SDRAM_CommandTypeDef *SdramCmd)
+{
+  if(HAL_SDRAM_SendCommand(Ctx, SdramCmd, IS42S32800J_TIMEOUT) != HAL_OK)
+  {
+    return IS42S32800J_ERROR;
+  }
+  else
+  {
+    return IS42S32800J_OK;
+  }
+}
+
+/**
+  * @}
+  */
+
+/** @defgroup IS42S32800J_Private_Functions IS42S32800J Private Functions
+  * @{
+  */
+
+/**
+  * @brief This function provides accurate delay (in milliseconds)
+  * @param Delay : specifies the delay time length, in milliseconds
+  * @retval IS42S32800J_OK
+  */
+int32_t IS42S32800J_Delay(uint32_t Delay)
+{
+  uint32_t tickstart;
+  tickstart = HAL_GetTick();
+  while((HAL_GetTick() - tickstart) < Delay)
+  {
+  }
+  return IS42S32800J_OK;
+}
+
+void
+BSP_SDRAM_Write_word( uint32_t address, uint32_t data )
+{
+  *( __IO uint32_t * )( SDRAM_DEVICE_ADDR + address ) = data;
+}
+
+uint32_t
+BSP_SDRAM_Read_word( uint32_t address )
+{
+  return *( __IO uint32_t * )( SDRAM_DEVICE_ADDR + address );
+}
+
+int32_t
+BSP_SDRAM_SingleTest( void )
+{
+  volatile uint32_t i;
+  volatile uint32_t w=0;
+
+  for ( i = 0; i < SDRAM_DEVICE_SIZE/4; ++i )
+  {
+    BSP_SDRAM_Write_word( i * 4, w );
+  }
+
+  for ( i = 0; i < SDRAM_DEVICE_SIZE/4; ++i )
+  {
+    if ( w != BSP_SDRAM_Read_word( i * 4 ) )
+    {
+      return -1;
+    }
+  }
+
+  return 0;
+}
 
 /* USER CODE END 0 */
 
@@ -31,7 +422,7 @@ SDRAM_HandleTypeDef hsdram1;
 void MX_FMC_Init(void)
 {
   /* USER CODE BEGIN FMC_Init 0 */
-
+  static IS42S32800J_Context_t pRegMode;
   /* USER CODE END FMC_Init 0 */
 
   FMC_SDRAM_TimingTypeDef SdramTiming = {0};
@@ -69,7 +460,21 @@ void MX_FMC_Init(void)
   }
 
   /* USER CODE BEGIN FMC_Init 2 */
+  /* External memory mode register configuration */
+  pRegMode.TargetBank      = FMC_SDRAM_CMD_TARGET_BANK2;
+  pRegMode.RefreshMode     = IS42S32800J_AUTOREFRESH_MODE_CMD;
+  pRegMode.RefreshRate     = REFRESH_COUNT;
+  pRegMode.BurstLength     = IS42S32800J_BURST_LENGTH_1;
+  pRegMode.BurstType       = IS42S32800J_BURST_TYPE_SEQUENTIAL;
+  pRegMode.CASLatency      = IS42S32800J_CAS_LATENCY_3;
+  pRegMode.OperationMode   = IS42S32800J_OPERATING_MODE_STANDARD;
+  pRegMode.WriteBurstMode  = IS42S32800J_WRITEBURST_MODE_SINGLE;
 
+  /* SDRAM initialization sequence */
+  if(IS42S32800J_Init(&hsdram1, &pRegMode) != IS42S32800J_OK)
+  {
+    Error_Handler( );
+  }
   /* USER CODE END FMC_Init 2 */
 }
 
