@@ -42,9 +42,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "lvgl_port.h"
 #include "lvgl/lvgl.h"
 #include "lvgl/demos/lv_demos.h"
+#include "lvgl_port_touch.h"
+#include "lvgl_port.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -183,9 +185,12 @@ Error_Handler();
   MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
-  /* lvgl init */
+  /* initialize LVGL framework */
   lv_init();
+
+  /* initialize display and touchscreen */
   lv_port_disp_init();
+  lvgl_touchscreen_init();
 
   /* lvgl demo */
   lv_demo_widgets();
