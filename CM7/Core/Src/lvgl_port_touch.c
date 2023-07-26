@@ -52,7 +52,7 @@ lvgl_touchscreen_init (void)
 
 static void
 lvgl_touchscreen_read (lv_indev_drv_t  *indev,
-		               lv_indev_data_t *data)
+                       lv_indev_data_t *data)
 {
   static lv_coord_t last_x = 0;
   static lv_coord_t last_y = 0;
@@ -70,13 +70,13 @@ lvgl_touchscreen_read (lv_indev_drv_t  *indev,
       status = HAL_I2C_Mem_Read(&hi2c1, (0x41 << 1), 0x10, 1, rx_buf, sizeof(rx_buf), 100);
       if (status == HAL_OK)
         {
-    	  last_x = (rx_buf[3] & 0x0F) << 8 | rx_buf[2];
-		  last_y = (rx_buf[5] & 0x0F) <<= 8 | rx_buf[4];
-		  data->state = LV_INDEV_STATE_PRESSED;
+          last_x = (rx_buf[3] & 0x0F) << 8 | rx_buf[2];
+          last_y = (rx_buf[5] & 0x0F) << 8 | rx_buf[4];
+          data->state = LV_INDEV_STATE_PRESSED;
         }
 	  else
         {
-		  data->state = LV_INDEV_STATE_RELEASED;
+          data->state = LV_INDEV_STATE_RELEASED;
         }
     }
   else
@@ -95,6 +95,3 @@ HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   if (GPIO_Pin == CTP_INT_Pin)
     touch_irq = 1;
 }
-
-
-
