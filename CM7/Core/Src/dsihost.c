@@ -121,8 +121,8 @@ void MX_DSIHOST_DSI_Init(void)
   VidCfg.VSPolarity = DSI_VSYNC_ACTIVE_LOW;
   VidCfg.DEPolarity = DSI_DATA_ENABLE_ACTIVE_HIGH;
   VidCfg.HorizontalSyncActive = 70;
-  VidCfg.HorizontalBackPorch = 193;
-  VidCfg.HorizontalLine = 1708;
+  VidCfg.HorizontalBackPorch = 238;
+  VidCfg.HorizontalLine = 2104;
   VidCfg.VerticalSyncActive = 10;
   VidCfg.VerticalBackPorch = 23;
   VidCfg.VerticalFrontPorch = 12;

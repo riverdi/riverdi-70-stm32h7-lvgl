@@ -45,7 +45,7 @@
 #include "lvgl/lvgl.h"
 #include "lvgl/demos/lv_demos.h"
 #include "lvgl_port_touch.h"
-#include "lvgl_port.h"
+#include "lvgl_port_display.h"
 
 /* USER CODE END Includes */
 
@@ -102,6 +102,9 @@ int main(void)
 
   /* Enable I-Cache---------------------------------------------------------*/
   SCB_EnableICache();
+
+  /* Enable D-Cache---------------------------------------------------------*/
+  SCB_EnableDCache();
 
 /* USER CODE BEGIN Boot_Mode_Sequence_1 */
   /* Wait until CPU2 boots and enters in stop mode or timeout*/
@@ -189,7 +192,7 @@ Error_Handler();
   lv_init();
 
   /* initialize display and touchscreen */
-  lv_port_disp_init();
+  lvgl_display_init();
   lvgl_touchscreen_init();
 
   /* lvgl demo */
@@ -306,10 +309,10 @@ void PeriphCommonClock_Config(void)
   PeriphClkInitStruct.PLL2.PLL2VCOSEL = RCC_PLL2VCOWIDE;
   PeriphClkInitStruct.PLL2.PLL2FRACN = 3072;
   PeriphClkInitStruct.PLL3.PLL3M = 12;
-  PeriphClkInitStruct.PLL3.PLL3N = 231;
+  PeriphClkInitStruct.PLL3.PLL3N = 250;
   PeriphClkInitStruct.PLL3.PLL3P = 6;
   PeriphClkInitStruct.PLL3.PLL3Q = 6;
-  PeriphClkInitStruct.PLL3.PLL3R = 6;
+  PeriphClkInitStruct.PLL3.PLL3R = 8;
   PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_0;
   PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOWIDE;
   PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
