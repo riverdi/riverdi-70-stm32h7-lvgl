@@ -18,9 +18,9 @@
  *  STATIC PROTOTYPES
  **********************/
 
-static void disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
-static void disp_clean_dcache(lv_disp_drv_t *drv);
-static void CopyImageToLcdFrameBuffer(void *pSrc, void *pDst, uint32_t xSize, uint32_t ySize);
+static void disp_flush (lv_disp_drv_t*, const lv_area_t*, lv_color_t*);
+static void disp_clean_dcache (lv_disp_drv_t*);
+static void disp_copy_data (void*, void*, uint32_t, uint32_t);
 
 /**********************
  *  STATIC VARIABLES
@@ -52,10 +52,11 @@ lvgl_display_init (void)
   disp_drv.hor_res = MY_DISP_HOR_RES;
   disp_drv.ver_res = MY_DISP_VER_RES;
 
-  /* set callbacks for display driver */
+  /* set callback for display driver */
   disp_drv.flush_cb = disp_flush;
   disp_drv.clean_dcache_cb = disp_clean_dcache;
   //disp_drv.full_refresh = 1;
+  //disp_drv.direct_mode = 1;
 
   /* set a display buffer */
   disp_drv.draw_buf = &disp_buf;
@@ -68,8 +69,6 @@ lvgl_display_init (void)
  *   STATIC FUNCTIONS
  **********************/
 
-/* flush the content of the internal buffer the specific area on the display
- * lv_disp_flush_ready()' has to be called when finished */
 static void
 disp_flush (lv_disp_drv_t   *drv,
             const lv_area_t *area,
@@ -78,25 +77,25 @@ disp_flush (lv_disp_drv_t   *drv,
   uint32_t address;
 
   /* return if the area is out the screen */
-  if (area->x2 < 0)
-    return;
-  if (area->y2 < 0)
-    return;
-  if (area->x1 > MY_DISP_HOR_RES - 1)
-    return;
-  if (area->y1 > MY_DISP_VER_RES - 1)
-  return;
+  if ((area->x2 < 0) || (area->y2 < 0) || \
+      (area->x1 > MY_DISP_HOR_RES - 1) || \
+      (area->y1 > MY_DISP_VER_RES - 1))
+    {
+      lv_disp_flush_ready(&disp_drv);
+      return;
+    }
 
   /* invalidate cache */
   SCB_CleanInvalidateDCache();
   SCB_InvalidateICache();
 
+  /* calculate destination address */
   address = hltdc.LayerCfg[0].FBStartAdress + \
             (((MY_DISP_HOR_RES * area->y1) + area->x1) * 4);
 
-  CopyImageToLcdFrameBuffer((void*) color_p, (void*) address, lv_area_get_width(area), lv_area_get_height(area));
-
-  lv_disp_flush_ready(&disp_drv);
+  /* start dma */
+  disp_copy_data ((void*) color_p, (void*) address,
+                  lv_area_get_width(area), lv_area_get_height(area));
 }
 
 static void
@@ -106,27 +105,27 @@ disp_clean_dcache (lv_disp_drv_t *drv)
 }
 
 static void
-CopyImageToLcdFrameBuffer (void      *pSrc,
-                           void      *pDst,
-                           uint32_t   xSize,
-                           uint32_t   ySize)
+disp_copy_data_complete (DMA2D_HandleTypeDef *hdma2d)
+{
+  lv_disp_flush_ready(&disp_drv);
+}
+
+static void
+disp_copy_data (void      *pSrc,
+                void      *pDst,
+                uint32_t   xSize,
+                uint32_t   ySize)
 {
   /* configure DMA2D */
   hdma2d.Init.Mode = DMA2D_M2M;
   hdma2d.Init.ColorMode = DMA2D_OUTPUT_ARGB8888;
   hdma2d.Init.AlphaInverted = DMA2D_REGULAR_ALPHA;
   hdma2d.Init.RedBlueSwap = DMA2D_RB_REGULAR;
-  hdma2d.Init.OutputOffset = 1024 - xSize;
+  hdma2d.Init.OutputOffset = MY_DISP_HOR_RES - xSize;
+  hdma2d.XferCpltCallback = disp_copy_data_complete;
   hdma2d.Instance = DMA2D;
 
-  /* DMA2D initialization */
+  /* DMA2D initialization & start*/
   if (HAL_DMA2D_Init(&hdma2d) == HAL_OK)
-    {
-      if (HAL_DMA2D_Start(&hdma2d, (uint32_t) pSrc, (uint32_t) pDst,
-                          xSize, ySize) == HAL_OK)
-        {
-          /* polling for DMA transfer */
-          HAL_DMA2D_PollForTransfer(&hdma2d, 10);
-        }
-    }
+    HAL_DMA2D_Start_IT(&hdma2d, (uint32_t)pSrc, (uint32_t)pDst, xSize, ySize);
 }
