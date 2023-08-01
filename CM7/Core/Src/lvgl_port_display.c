@@ -7,20 +7,12 @@
 #include "ltdc.h"
 #include "dma2d.h"
 
-/*********************
- *      DEFINES
- *********************/
-
-#define LVGL_BUFFER_1_ADDR_AT_SDRAM	(0xD0258000)
-#define LVGL_BUFFER_2_ADDR_AT_SDRAM (0xD04B0000)
-
 /**********************
  *  STATIC PROTOTYPES
  **********************/
 
 static void disp_flush (lv_disp_drv_t*, const lv_area_t*, lv_color_t*);
-static void disp_clean_dcache (lv_disp_drv_t*);
-static void disp_copy_data (void*, void*, uint32_t, uint32_t);
+static void disp_flush_complete (DMA2D_HandleTypeDef*);
 
 /**********************
  *  STATIC VARIABLES
@@ -28,6 +20,7 @@ static void disp_copy_data (void*, void*, uint32_t, uint32_t);
 
 static lv_disp_drv_t disp_drv;
 static lv_disp_draw_buf_t disp_buf;
+static __attribute__((aligned(32))) lv_color_t buf_1[MY_DISP_HOR_RES * 64];
 
 /**********************
  *   GLOBAL FUNCTIONS
@@ -41,9 +34,9 @@ lvgl_display_init (void)
 
   /* display buffer initialization */
   lv_disp_draw_buf_init (&disp_buf,
-                         (void*)LVGL_BUFFER_1_ADDR_AT_SDRAM,
-                         (void*)LVGL_BUFFER_2_ADDR_AT_SDRAM,
-                         MY_DISP_HOR_RES * MY_DISP_VER_RES);
+                         (void*) buf_1,
+                         NULL,
+                         MY_DISP_HOR_RES * 64);
 
   /* register the display in LVGL */
   lv_disp_drv_init(&disp_drv);
@@ -54,9 +47,10 @@ lvgl_display_init (void)
 
   /* set callback for display driver */
   disp_drv.flush_cb = disp_flush;
-  disp_drv.clean_dcache_cb = disp_clean_dcache;
-  //disp_drv.full_refresh = 1;
-  //disp_drv.direct_mode = 1;
+  disp_drv.full_refresh = 0;
+
+  /* interrupt callback for DMA2D transfer */
+  hdma2d.XferCpltCallback = disp_flush_complete;
 
   /* set a display buffer */
   disp_drv.draw_buf = &disp_buf;
@@ -74,58 +68,25 @@ disp_flush (lv_disp_drv_t   *drv,
             const lv_area_t *area,
             lv_color_t      *color_p)
 {
-  uint32_t address;
+  lv_coord_t width = lv_area_get_width(area);
+  lv_coord_t height = lv_area_get_height(area);
 
-  /* return if the area is out the screen */
-  if ((area->x2 < 0) || (area->y2 < 0) || \
-      (area->x1 > MY_DISP_HOR_RES - 1) || \
-      (area->y1 > MY_DISP_VER_RES - 1))
-    {
-      lv_disp_flush_ready(&disp_drv);
-      return;
-    }
-
-  /* invalidate cache */
-  SCB_CleanInvalidateDCache();
-  SCB_InvalidateICache();
-
-  /* calculate destination address */
-  address = hltdc.LayerCfg[0].FBStartAdress + \
-            (((MY_DISP_HOR_RES * area->y1) + area->x1) * 4);
-
-  /* start dma */
-  disp_copy_data ((void*) color_p, (void*) address,
-                  lv_area_get_width(area), lv_area_get_height(area));
+  DMA2D->CR = 0x0U << DMA2D_CR_MODE_Pos;
+  DMA2D->FGPFCCR = DMA2D_INPUT_ARGB8888;
+  DMA2D->FGMAR = (uint32_t)color_p;
+  DMA2D->FGOR = 0;
+  DMA2D->OPFCCR = DMA2D_OUTPUT_ARGB8888;
+  DMA2D->OMAR = hltdc.LayerCfg[0].FBStartAdress + 4 * \
+                (area->y1 * MY_DISP_HOR_RES + area->x1);
+  DMA2D->OOR = MY_DISP_HOR_RES - width;
+  DMA2D->NLR = (width << DMA2D_NLR_PL_Pos) | (height << DMA2D_NLR_NL_Pos);
+  DMA2D->IFCR = 0x3FU;
+  DMA2D->CR |= DMA2D_CR_TCIE;
+  DMA2D->CR |= DMA2D_CR_START;
 }
 
 static void
-disp_clean_dcache (lv_disp_drv_t *drv)
-{
-  SCB_CleanInvalidateDCache();
-}
-
-static void
-disp_copy_data_complete (DMA2D_HandleTypeDef *hdma2d)
+disp_flush_complete (DMA2D_HandleTypeDef *hdma2d)
 {
   lv_disp_flush_ready(&disp_drv);
-}
-
-static void
-disp_copy_data (void      *pSrc,
-                void      *pDst,
-                uint32_t   xSize,
-                uint32_t   ySize)
-{
-  /* configure DMA2D */
-  hdma2d.Init.Mode = DMA2D_M2M;
-  hdma2d.Init.ColorMode = DMA2D_OUTPUT_ARGB8888;
-  hdma2d.Init.AlphaInverted = DMA2D_REGULAR_ALPHA;
-  hdma2d.Init.RedBlueSwap = DMA2D_RB_REGULAR;
-  hdma2d.Init.OutputOffset = MY_DISP_HOR_RES - xSize;
-  hdma2d.XferCpltCallback = disp_copy_data_complete;
-  hdma2d.Instance = DMA2D;
-
-  /* DMA2D initialization & start*/
-  if (HAL_DMA2D_Init(&hdma2d) == HAL_OK)
-    HAL_DMA2D_Start_IT(&hdma2d, (uint32_t)pSrc, (uint32_t)pDst, xSize, ySize);
 }
