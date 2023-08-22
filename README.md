@@ -1,6 +1,6 @@
 # LVGL port for the 7-inch Riverdi STM32 Embedded Displays (STM32H757XIH86)
 
-This repository contains the __Light and Versatile Graphics Library (LVGL)__ port for the __7-inch Riverdi STM32 Embedded Displays__ with *STM32H757XIH86* MCU. It's ready-to-use project template which you can easily import into *STM32CubeIDE* and *STM32CubeMX* (to reconfigure selected peripherals). This project uses latest stable LVGL release (v8.3.8). For more info about LVGL (docs, API, tutorials) please visit [*https://lvgl.io/*](https://lvgl.io/) and [*https://github.com/lvgl/lvgl*](https://github.com/lvgl/lvgl)
+This repository contains the __Light and Versatile Graphics Library (LVGL)__ port for the __7-inch Riverdi STM32 Embedded Displays__ with *STM32H757XIH86* MCU. It's ready-to-use project template which you can easily import into *STM32CubeIDE* and *STM32CubeMX* (to reconfigure selected peripherals). This project uses latest stable LVGL release (v8.3.9). For more info about LVGL (docs, API, tutorials) please visit [*https://lvgl.io/*](https://lvgl.io/) and [*https://github.com/lvgl/lvgl*](https://github.com/lvgl/lvgl)
 
 ![img1](/Docs/img_1.png)
 
@@ -12,6 +12,11 @@ This repository supports all configuration of 7-inch *Riverdi STM32 Embedded Dis
 * [*RVT70HSSNWCA0*](https://riverdi.com/product/7-inch-lcd-display-capacitive-touch-panel-air-bonding-atouch-stm32h7-rvt70hssnwca0/) - *STM32H757XIH86, Capacitive Touch Panel, Air bonding, aTouch*
 * [*RVT70HSSFWN00*](https://riverdi.com/product/7-inch-lcd-display-stm32h7-frame-rvt70hssfwn00/) - *STM32H757XIH86*
 * [*RVT70HSSNWN00*](https://riverdi.com/product/7-inch-lcd-display-stm32h7-rvt70hssnwn00/) - *STM32H757XIH86*
+
+For LVGL project templates for 5-inch and 10.1-inch *Riverdi STM32 Embedded Displays*, please visit:
+
+* [*riverdi-50-stm32u5-lvgl*](https://github.com/riverdi/riverdi-50-stm32u5-lvgl)
+* [*riverdi-101-stm32h7-lvgl*](https://github.com/riverdi/riverdi-101-stm32h7-lvgl)
 
 ## What is Riverdi STM32 Embedded Display?
 
@@ -66,7 +71,7 @@ git clone --recursive https://github.com/riverdi/riverdi-70-stm32h7-lvgl.git
 ```
 File => Open Projects from File System... => Directory => Select the "riverdi-70-stm32h7-lvgl/STM32CubeIde" folder => Finish
 ```
-[3] Build the project:
+[3] Build the project (for the best performance, please use *Release* configuration with *-Ofast* flag):
 ```
 Project => Build all
 ```
