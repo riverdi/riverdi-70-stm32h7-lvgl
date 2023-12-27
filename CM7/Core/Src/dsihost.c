@@ -98,6 +98,10 @@ void MX_DSIHOST_DSI_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_DSI_SetPHYTimings(&hdsi, DSI_THS_ZERO, ENABLE, 200) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_DSI_ConfigFlowControl(&hdsi, DSI_FLOW_CONTROL_BTA) != HAL_OK)
   {
     Error_Handler();
