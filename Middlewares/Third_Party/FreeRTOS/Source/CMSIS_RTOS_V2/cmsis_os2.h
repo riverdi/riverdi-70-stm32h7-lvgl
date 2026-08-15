@@ -686,7 +686,7 @@ const char *osMessageQueueGetName (osMessageQueueId_t mq_id);
 /// \param[in]     msg_prio      message priority.
 /// \param[in]     timeout       \ref CMSIS_RTOS_TimeOutValue or 0 in case of no time-out.
 /// \return status code that indicates the execution status of the function.
-osStatus_t osMessageQueuePut (osMessageQueueId_t mq_id, const void *msg_ptr, uint8_t msg_prio, uint32_t timeout);
+osStatus_t osMessageQueuePut (osMessageQueueId_t mq_id, const void *msg_ptr, void *msg_prio, uint32_t timeout);
 
 /// Get a Message from a Queue or timeout if Queue is empty.
 /// \param[in]     mq_id         message queue ID obtained by \ref osMessageQueueNew.

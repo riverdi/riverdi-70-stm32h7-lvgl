@@ -1747,7 +1747,7 @@ osMessageQueueId_t osMessageQueueNew (uint32_t msg_count, uint32_t msg_size, con
   return ((osMessageQueueId_t)hQueue);
 }
 
-osStatus_t osMessageQueuePut (osMessageQueueId_t mq_id, const void *msg_ptr, uint8_t msg_prio, uint32_t timeout) {
+osStatus_t osMessageQueuePut (osMessageQueueId_t mq_id, const void *msg_ptr, void *msg_prio, uint32_t timeout) {
   QueueHandle_t hQueue = (QueueHandle_t)mq_id;
   osStatus_t stat;
   BaseType_t yield;
